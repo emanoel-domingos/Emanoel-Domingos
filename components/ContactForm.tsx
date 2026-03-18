@@ -22,7 +22,7 @@ export const ContactForm: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("https://formsubmit.co/ajax/contato@edwilliansvigna.online", {
+      const response = await fetch("https://formsubmit.co/ajax/contato@edwilliansvigna.com.br", {
         method: "POST",
         headers: { 
           'Content-Type': 'application/json',

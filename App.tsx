@@ -35,8 +35,8 @@ const DEFAULT_TEXTS = {
   BOOK_TITLE_2: "PROIBIDO",
   BOOK_DESC_1: "A emocionante história real de Katharinne Lee e William Bryan. Ela, criada em uma bolha religiosa, viveu 23 anos de um casamento abusivo. Ele, um teólogo de Harvard, superou traumas profundos.",
   BOOK_DESC_2: "No cenário paradisíaco da vila de Rodanthe, eles descobrem que nunca é tarde para viver um amor maduro, enfrentando dogmas e a busca pela identidade.",
-  PRICE_PHYSICAL: "49,90",
-  PRICE_PHYSICAL_OLD: "59,90",
+  PRICE_PHYSICAL: "69,90",
+  PRICE_PHYSICAL_OLD: "89,90",
   PRICE_EBOOK: "19,90",
 
   // GALERIA DE OBRAS
@@ -138,7 +138,7 @@ const App: React.FC = () => {
   const whatsappLink = "https://wa.me/5532984249779?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20o%20livro%20Amor%20Proibido.";
   const catalogoLink = "https://wa.me/c/553284249779";
   const amazonLink = "https://www.amazon.com.br/dp/B0GG59T28S";
-  const hotmartLink = "https://ed-williansvigna.hotmart.host/ebook-amor-proibido-amor-drama-e-superacao-83caf3ae-4aec-48fc-99e5-850108acbc11";
+  const hotmartLink = "https://go.hotmart.com/P104964934F";
   const instagramLink = "https://www.instagram.com/ed.ebookcriativo/"; 
   const facebookLink = "https://www.facebook.com/profile.php?id=61586950552494";
   const youtubeLink = "https://www.youtube.com/@e-BookCriativo-EmanoelDomingos";
@@ -153,7 +153,7 @@ const App: React.FC = () => {
       year: texts.BOOK_1_YEAR,
       pages: "320",
       description: texts.BOOK_DESC_1 + " " + texts.BOOK_DESC_2, // Usa os textos da seção principal
-      link: amazonLink,
+      link: hotmartLink,
       isAvailable: true
     },
     {
@@ -240,7 +240,7 @@ const App: React.FC = () => {
             </p>
             
             <div className="flex flex-wrap gap-4 pt-4">
-              <Button onClick={() => window.open(amazonLink, '_blank')} className="shadow-lg shadow-brand-red/20">
+              <Button onClick={() => window.open(hotmartLink, '_blank')} className="shadow-lg shadow-brand-red/20">
                 Adquirir Livro
               </Button>
               <Button variant="secondary" className="border-white/20 hover:bg-white/10" onClick={() => document.getElementById('obras')?.scrollIntoView({ behavior: 'smooth' })}>
@@ -321,22 +321,22 @@ const App: React.FC = () => {
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4 pt-6">
-                 <div className="border-2 border-brand-red bg-white p-6 rounded-sm relative hover:shadow-2xl hover:shadow-brand-red/10 transition-all duration-300 cursor-pointer group" onClick={() => window.open(amazonLink, '_blank')}>
-                    <div className="absolute -top-3 right-4 bg-brand-dark text-white text-[10px] font-bold px-3 py-1 uppercase tracking-widest shadow-md">Disponível na Amazon</div>
+                 <div className="border-2 border-brand-red bg-white p-6 rounded-sm relative hover:shadow-2xl hover:shadow-brand-red/10 transition-all duration-300 cursor-pointer group" onClick={() => window.open(hotmartLink, '_blank')}>
+                    <div className="absolute -top-3 right-4 bg-brand-dark text-white text-[10px] font-bold px-3 py-1 uppercase tracking-widest shadow-md">Disponível na Hotmart</div>
                     <Book className="w-8 h-8 text-brand-dark mb-3 group-hover:text-brand-red transition-colors" />
                     <h4 className="font-display font-bold text-xl text-brand-dark">Livro Físico</h4>
-                    <p className="text-gray-400 text-xs mt-1 uppercase tracking-wide">Edição Literando</p>
+                    <p className="text-gray-400 text-xs mt-1 uppercase tracking-wide">Edição Literando + Frete Grátis</p>
                     <div className="mt-4 flex items-end gap-2">
                        <span className="text-3xl font-bold text-brand-red">R$ {texts.PRICE_PHYSICAL}</span>
                        <span className="text-gray-400 line-through text-sm mb-1">R$ {texts.PRICE_PHYSICAL_OLD}</span>
                     </div>
                  </div>
 
-                 <div className="border border-gray-200 bg-brand-gray p-6 rounded-sm relative hover:border-brand-gold hover:bg-white transition-all duration-300 cursor-pointer group" onClick={() => window.open(hotmartLink, '_blank')}>
-                    <div className="absolute top-0 right-0 bg-brand-gold text-brand-dark text-[10px] font-bold px-2 py-1 uppercase">Plataforma Hotmart</div>
+                 <div className="border border-gray-200 bg-brand-gray p-6 rounded-sm relative hover:border-brand-gold hover:bg-white transition-all duration-300 cursor-pointer group" onClick={() => window.open(amazonLink, '_blank')}>
+                    <div className="absolute top-0 right-0 bg-brand-gold text-brand-dark text-[10px] font-bold px-2 py-1 uppercase">Plataforma Amazon</div>
                     <Globe className="w-8 h-8 text-brand-gold mb-3" />
                     <h4 className="font-display font-bold text-xl text-brand-dark">E-book</h4>
-                    <p className="text-gray-500 text-xs mt-1 uppercase tracking-wide">PDF / EPUB</p>
+                    <p className="text-gray-500 text-xs mt-1 uppercase tracking-wide">Versão Digital / Kindle</p>
                     <div className="mt-4 flex items-end gap-2">
                        <span className="text-3xl font-bold text-brand-dark">R$ {texts.PRICE_EBOOK}</span>
                     </div>
