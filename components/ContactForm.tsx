@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { Calendar, User, Mail, Phone, MessageSquare } from 'lucide-react';
+import { db } from '../firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from './FirebaseProvider';
 
 export const ContactForm: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -22,6 +25,18 @@ export const ContactForm: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      // 1. Salvar no Firestore (Novo Recurso)
+      try {
+        await addDoc(collection(db, 'contacts'), {
+          ...formData,
+          createdAt: serverTimestamp()
+        });
+      } catch (fsError) {
+        // Logamos o erro mas continuamos com o envio por e-mail para não perder o lead
+        console.error("Erro ao salvar no banco de dados:", fsError);
+      }
+
+      // 2. Enviar por E-mail (Existente)
       const response = await fetch("https://formsubmit.co/ajax/contato@edwilliansvigna.com.br", {
         method: "POST",
         headers: { 

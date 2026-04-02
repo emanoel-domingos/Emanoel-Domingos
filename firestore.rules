@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: config
+    // Document ID: site
+    // Fields:
+    //   - images: map (required) - Image URLs
+    //   - texts: map (required) - Text content
+    //   - updatedAt: timestamp (optional) - Last update time
+    //
+    // Collection: contacts
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required)
+    //   - email: string (required, email format)
+    //   - phone: string (optional)
+    //   - message: string (required)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: launch_notifications
+    // Document ID: auto-generated
+    // Fields:
+    //   - email: string (required, email format)
+    //   - bookId: number (required)
+    //   - bookTitle: string (required)
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "emanoel.domingos0909@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidSiteConfig(data) {
+      return data.keys().hasAll(['images', 'texts']) &&
+             data.images is map &&
+             data.texts is map;
+    }
+
+    function isValidContact(data) {
+      return data.keys().hasAll(['name', 'email', 'message', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.message is string && data.message.size() > 0 && data.message.size() < 5000 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidLaunchNotification(data) {
+      return data.keys().hasAll(['email', 'bookId', 'bookTitle', 'createdAt']) &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.bookId is number &&
+             data.bookTitle is string && data.bookTitle.size() > 0 && data.bookTitle.size() < 200 &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /config/site {
+      allow read: if true; // Publicly readable for site content
+      allow write: if isAdmin() && isValidSiteConfig(request.resource.data);
+    }
+
+    match /contacts/{contactId} {
+      allow create: if isValidContact(request.resource.data);
+      allow list, get, delete: if isAdmin();
+      allow update: if false; // Contacts are immutable
+    }
+
+    match /launch_notifications/{notificationId} {
+      allow create: if isValidLaunchNotification(request.resource.data);
+      allow list, get, delete: if isAdmin();
+      allow update: if false; // Notifications are immutable
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+  }
+}

@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, X, Save, RotateCcw, Image as ImageIcon, Link as LinkIcon, AlertCircle, Type, LayoutTemplate, ChevronDown, ChevronUp } from 'lucide-react';
+import { Settings, X, Save, RotateCcw, Image as ImageIcon, Link as LinkIcon, AlertCircle, Type, LayoutTemplate, ChevronDown, ChevronUp, User as UserIcon, Mail, Bell, Calendar as CalendarIcon, Trash2, Loader2 } from 'lucide-react';
 import { Button } from './Button';
+import { User } from 'firebase/auth';
+import { db } from '../firebase';
+import { collection, query, orderBy, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from './FirebaseProvider';
 
 interface ImageConfig {
   LOGO: string;
@@ -61,6 +65,7 @@ interface AdminSettingsProps {
   currentTexts: TextConfig;
   onUpdateTexts: (newTexts: TextConfig) => void;
   onResetTexts: () => void;
+  user: User;
 }
 
 // Helper para Renderizar Grupos de Campos
@@ -86,20 +91,63 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
   onReset,
   currentTexts,
   onUpdateTexts,
-  onResetTexts
+  onResetTexts,
+  user
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'images' | 'texts'>('texts');
+  const [activeTab, setActiveTab] = useState<'images' | 'texts' | 'leads'>('texts');
   
   const [tempImages, setTempImages] = useState<ImageConfig>(currentImages);
   const [tempTexts, setTempTexts] = useState<TextConfig>(currentTexts);
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState(false);
 
   // Sincroniza o estado local quando as props mudam (ex: reset externo)
   useEffect(() => {
     setTempImages(currentImages);
     setTempTexts(currentTexts);
   }, [currentImages, currentTexts]);
+
+  // Busca Leads (Contatos e Notificações)
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'leads') return;
+
+    setLoadingLeads(true);
+    
+    // Listener para Contatos
+    const qContacts = query(collection(db, 'contacts'), orderBy('createdAt', 'desc'));
+    const unsubscribeContacts = onSnapshot(qContacts, (snapshot) => {
+      setContacts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoadingLeads(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'contacts');
+    });
+
+    // Listener para Notificações de Lançamento
+    const qNotifications = query(collection(db, 'launch_notifications'), orderBy('createdAt', 'desc'));
+    const unsubscribeNotifications = onSnapshot(qNotifications, (snapshot) => {
+      setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'launch_notifications');
+    });
+
+    return () => {
+      unsubscribeContacts();
+      unsubscribeNotifications();
+    };
+  }, [isOpen, activeTab]);
+
+  const handleDeleteLead = async (collectionName: string, id: string) => {
+    if (!window.confirm('Deseja excluir este registro permanentemente?')) return;
+    try {
+      await deleteDoc(doc(db, collectionName, id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `${collectionName}/${id}`);
+    }
+  };
 
   // Função robusta para converter Link do Google Drive
   const processUrl = (url: string) => {
@@ -183,7 +231,10 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
           <div className="p-6 bg-brand-dark text-white flex justify-between items-center shadow-md">
             <div>
               <h2 className="text-xl font-display font-bold">Personalizar</h2>
-              <p className="text-xs text-brand-gold mt-1">Edite o conteúdo do site</p>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                <p className="text-[10px] text-brand-gold uppercase tracking-widest font-bold">{user.email}</p>
+              </div>
             </div>
             <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white">
               <X className="w-6 h-6" />
@@ -202,6 +253,12 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
                 className={`flex-1 py-2 px-4 rounded text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'images' ? 'bg-white text-brand-red shadow' : 'text-gray-500 hover:bg-gray-200'}`}
              >
                 <ImageIcon className="w-4 h-4" /> Imagens
+             </button>
+             <button 
+                onClick={() => setActiveTab('leads')}
+                className={`flex-1 py-2 px-4 rounded text-sm font-bold flex items-center justify-center gap-2 transition-colors ${activeTab === 'leads' ? 'bg-white text-brand-red shadow' : 'text-gray-500 hover:bg-gray-200'}`}
+             >
+                <UserIcon className="w-4 h-4" /> Leads
              </button>
           </div>
 
@@ -310,24 +367,102 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
                     ))}
                 </div>
             )}
+
+            {activeTab === 'leads' && (
+                <div className="space-y-6">
+                    <div className="bg-brand-gold/10 p-4 rounded-lg border border-brand-gold/20">
+                        <h3 className="font-display font-bold text-brand-dark flex items-center gap-2">
+                            <Bell className="w-5 h-5 text-brand-red" /> Notificações de Lançamento
+                        </h3>
+                        <p className="text-xs text-gray-600 mt-1">Pessoas interessadas nos livros "Em Breve".</p>
+                        
+                        <div className="mt-4 space-y-3">
+                            {loadingLeads ? (
+                                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-brand-red" /></div>
+                            ) : notifications.length === 0 ? (
+                                <p className="text-center py-4 text-sm text-gray-400 italic">Nenhuma solicitação ainda.</p>
+                            ) : (
+                                notifications.map((n) => (
+                                    <div key={n.id} className="bg-white p-3 rounded border border-gray-200 shadow-sm relative group">
+                                        <button 
+                                            onClick={() => handleDeleteLead('launch_notifications', n.id)}
+                                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-brand-red transition-all"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                        <p className="text-sm font-bold text-brand-dark flex items-center gap-2">
+                                            <Mail className="w-3 h-3 text-brand-red" /> {n.email}
+                                        </p>
+                                        <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest font-bold">Livro: {n.bookTitle}</p>
+                                        <p className="text-[9px] text-gray-400 mt-1 flex items-center gap-1">
+                                            <CalendarIcon className="w-3 h-3" /> {n.createdAt?.toDate ? n.createdAt.toDate().toLocaleString() : 'Recentemente'}
+                                        </p>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="bg-brand-gray p-4 rounded-lg border border-gray-200">
+                        <h3 className="font-display font-bold text-brand-dark flex items-center gap-2">
+                            <Mail className="w-5 h-5 text-brand-gold" /> Mensagens de Contato
+                        </h3>
+                        <p className="text-xs text-gray-600 mt-1">Envios através do formulário de contato.</p>
+
+                        <div className="mt-4 space-y-3">
+                            {loadingLeads ? (
+                                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-brand-red" /></div>
+                            ) : contacts.length === 0 ? (
+                                <p className="text-center py-4 text-sm text-gray-400 italic">Nenhuma mensagem ainda.</p>
+                            ) : (
+                                contacts.map((c) => (
+                                    <div key={c.id} className="bg-white p-3 rounded border border-gray-200 shadow-sm relative group">
+                                        <button 
+                                            onClick={() => handleDeleteLead('contacts', c.id)}
+                                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-brand-red transition-all"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                        <p className="text-sm font-bold text-brand-dark">{c.name}</p>
+                                        <p className="text-xs text-brand-red">{c.email}</p>
+                                        {c.phone && <p className="text-[10px] text-gray-500">{c.phone}</p>}
+                                        <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-700 italic border-l-2 border-brand-gold">
+                                            "{c.message}"
+                                        </div>
+                                        <p className="text-[9px] text-gray-400 mt-2 flex items-center gap-1">
+                                            <CalendarIcon className="w-3 h-3" /> {c.createdAt?.toDate ? c.createdAt.toDate().toLocaleString() : 'Recentemente'}
+                                        </p>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
           </div>
 
           <div className="p-4 border-t border-gray-200 bg-white space-y-2 z-20">
-            <Button onClick={handleSave} fullWidth className="gap-2 shadow-xl py-3">
-              <Save className="w-4 h-4" /> Salvar {activeTab === 'images' ? 'Imagens' : 'Textos'}
-            </Button>
-            <button 
-              onClick={() => {
-                if(window.confirm(`Deseja restaurar os padrões?`)) {
-                  if (activeTab === 'images') onReset();
-                  else onResetTexts();
-                  setIsOpen(false);
-                }
-              }}
-              className="w-full py-2 text-xs text-gray-500 hover:text-brand-red flex items-center justify-center gap-2 transition-colors uppercase tracking-widest font-bold"
-            >
-              <RotateCcw className="w-3 h-3" /> Restaurar Padrões
-            </button>
+            {activeTab !== 'leads' ? (
+                <>
+                    <Button onClick={handleSave} fullWidth className="gap-2 shadow-xl py-3">
+                        <Save className="w-4 h-4" /> Salvar {activeTab === 'images' ? 'Imagens' : 'Textos'}
+                    </Button>
+                    <button 
+                        onClick={() => {
+                            if(window.confirm(`Deseja restaurar os padrões?`)) {
+                                if (activeTab === 'images') onReset();
+                                else onResetTexts();
+                                setIsOpen(false);
+                            }
+                        }}
+                        className="w-full py-2 text-xs text-gray-500 hover:text-brand-red flex items-center justify-center gap-2 transition-colors uppercase tracking-widest font-bold"
+                    >
+                        <RotateCcw className="w-3 h-3" /> Restaurar Padrões
+                    </button>
+                </>
+            ) : (
+                <p className="text-[10px] text-center text-gray-400 uppercase tracking-[0.2em] py-2">Visualizando Leads em Tempo Real</p>
+            )}
           </div>
         </div>
       </div>

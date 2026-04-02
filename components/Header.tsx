@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { Button } from './Button';
+import { User } from 'firebase/auth';
 
 interface HeaderProps {
   logoUrl?: string;
+  user: User | null;
+  onLogin: () => void;
+  onLogout: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ logoUrl }) => {
+export const Header: React.FC<HeaderProps> = ({ logoUrl, user, onLogin, onLogout }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -59,6 +63,31 @@ export const Header: React.FC<HeaderProps> = ({ logoUrl }) => {
           <Button variant="gold" onClick={() => document.getElementById('agendar')?.scrollIntoView({ behavior: 'smooth' })} className="!py-2 !px-6 !text-xs">
             Agendar
           </Button>
+
+          {/* Admin Button in Header */}
+          {user ? (
+            <button 
+              onClick={onLogout}
+              className="flex items-center gap-2 text-white/70 hover:text-brand-red transition-colors group"
+              title="Sair do Modo Admin"
+            >
+              <div className="w-8 h-8 rounded-full bg-brand-red/20 flex items-center justify-center group-hover:bg-brand-red/30 transition-colors">
+                <LogOut className="w-4 h-4" />
+              </div>
+              <span className="text-[10px] uppercase tracking-widest font-bold hidden lg:inline">Sair</span>
+            </button>
+          ) : (
+            <button 
+              onClick={onLogin}
+              className="flex items-center gap-2 text-white/70 hover:text-brand-gold transition-colors group"
+              title="Acesso Admin"
+            >
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-brand-gold/20 transition-colors">
+                <LogIn className="w-4 h-4" />
+              </div>
+              <span className="text-[10px] uppercase tracking-widest font-bold hidden lg:inline">Admin</span>
+            </button>
+          )}
         </nav>
 
         {/* Mobile Menu Button */}
@@ -93,6 +122,33 @@ export const Header: React.FC<HeaderProps> = ({ logoUrl }) => {
           >
             Agendar
           </Button>
+
+          {/* Mobile Admin Button */}
+          <div className="pt-4 border-t border-white/10">
+            {user ? (
+              <button 
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onLogout();
+                }}
+                className="flex items-center gap-4 text-white w-full py-2"
+              >
+                <LogOut className="w-5 h-5 text-brand-red" />
+                <span className="uppercase tracking-widest text-sm font-bold">Sair do Admin</span>
+              </button>
+            ) : (
+              <button 
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onLogin();
+                }}
+                className="flex items-center gap-4 text-white w-full py-2"
+              >
+                <LogIn className="w-5 h-5 text-brand-gold" />
+                <span className="uppercase tracking-widest text-sm font-bold">Acesso Admin</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
     </header>

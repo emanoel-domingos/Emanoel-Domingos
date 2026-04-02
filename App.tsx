@@ -5,7 +5,13 @@ import { WhatsAppButton } from './components/WhatsAppButton';
 import { Button } from './components/Button';
 import { BookDetailsModal, BookType } from './components/BookDetailsModal';
 import { AdminSettings } from './components/AdminSettings';
-import { BookOpen, Clock, Globe, ArrowRight, Star, Heart, Award, User, MessageSquare, Instagram, Facebook, Youtube, Quote, Book, PenTool, Plus, ShoppingBag, ExternalLink } from 'lucide-react';
+import { FirebaseProvider, useFirebase, handleFirestoreError, OperationType } from './components/FirebaseProvider';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { auth, db } from './firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { motion } from 'motion/react';
+import { BookOpen, Clock, Globe, ArrowRight, Star, Heart, Award, User, MessageSquare, Instagram, Facebook, Youtube, Quote, Book, PenTool, Plus, ShoppingBag, ExternalLink, LogIn, LogOut, Infinity } from 'lucide-react';
 
 // ==================================================================================
 // 📸 IMAGENS SELECIONADAS (Links Google Drive Convertidos)
@@ -81,18 +87,28 @@ const DEFAULT_TEXTS = {
   FOOTER_SUBTITLE: "Escritor & Conferencista"
 };
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
+  const { user, siteConfig, isAuthReady } = useFirebase();
+
   // Estado para Imagens
-  const [images, setImages] = useState(() => {
-    const savedImages = localStorage.getItem('site_images');
-    return savedImages ? { ...DEFAULT_IMAGES, ...JSON.parse(savedImages) } : DEFAULT_IMAGES;
-  });
+  const [images, setImages] = useState(DEFAULT_IMAGES);
 
   // Estado para Textos
-  const [texts, setTexts] = useState(() => {
-    const savedTexts = localStorage.getItem('site_texts');
-    return savedTexts ? { ...DEFAULT_TEXTS, ...JSON.parse(savedTexts) } : DEFAULT_TEXTS;
-  });
+  const [texts, setTexts] = useState(DEFAULT_TEXTS);
+
+  // Sincroniza com o Firebase quando os dados chegarem
+  useEffect(() => {
+    if (siteConfig) {
+      if (siteConfig.images) setImages({ ...DEFAULT_IMAGES, ...siteConfig.images });
+      if (siteConfig.texts) setTexts({ ...DEFAULT_TEXTS, ...siteConfig.texts });
+    } else {
+      // Fallback para localStorage se o Firebase ainda não tiver dados (primeiro acesso)
+      const savedImages = localStorage.getItem('site_images');
+      const savedTexts = localStorage.getItem('site_texts');
+      if (savedImages) setImages({ ...DEFAULT_IMAGES, ...JSON.parse(savedImages) });
+      if (savedTexts) setTexts({ ...DEFAULT_TEXTS, ...JSON.parse(savedTexts) });
+    }
+  }, [siteConfig]);
 
   const [selectedBook, setSelectedBook] = useState<BookType | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -105,6 +121,25 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Login Handler
+  const handleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Login failed:", error);
+    }
+  };
+
+  // Logout Handler
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
   // Efeito para Atualizar Favicon Dinamicamente
   useEffect(() => {
     const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement || document.createElement('link');
@@ -115,30 +150,79 @@ const App: React.FC = () => {
   }, [images.LOGO]);
 
   // --- Handlers Imagens ---
-  const handleUpdateImages = (newImages: typeof DEFAULT_IMAGES) => {
+  const handleUpdateImages = async (newImages: typeof DEFAULT_IMAGES) => {
     setImages(newImages);
-    localStorage.setItem('site_images', JSON.stringify(newImages));
+    if (user) {
+      try {
+        await setDoc(doc(db, 'config', 'site'), { 
+          images: newImages,
+          texts: texts,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, 'config/site');
+      }
+    } else {
+      localStorage.setItem('site_images', JSON.stringify(newImages));
+    }
   };
-  const handleResetImages = () => {
+
+  const handleResetImages = async () => {
     setImages(DEFAULT_IMAGES);
-    localStorage.removeItem('site_images');
+    if (user) {
+      try {
+        await setDoc(doc(db, 'config', 'site'), { 
+          images: DEFAULT_IMAGES,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, 'config/site');
+      }
+    } else {
+      localStorage.removeItem('site_images');
+    }
   };
 
   // --- Handlers Textos ---
-  const handleUpdateTexts = (newTexts: typeof DEFAULT_TEXTS) => {
+  const handleUpdateTexts = async (newTexts: typeof DEFAULT_TEXTS) => {
     setTexts(newTexts);
-    localStorage.setItem('site_texts', JSON.stringify(newTexts));
+    if (user) {
+      try {
+        await setDoc(doc(db, 'config', 'site'), { 
+          texts: newTexts,
+          images: images,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, 'config/site');
+      }
+    } else {
+      localStorage.setItem('site_texts', JSON.stringify(newTexts));
+    }
   };
-  const handleResetTexts = () => {
+
+  const handleResetTexts = async () => {
     setTexts(DEFAULT_TEXTS);
-    localStorage.removeItem('site_texts');
+    if (user) {
+      try {
+        await setDoc(doc(db, 'config', 'site'), { 
+          texts: DEFAULT_TEXTS,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, 'config/site');
+      }
+    } else {
+      localStorage.removeItem('site_texts');
+    }
   };
 
   // 🔗 LINKS SOCIAIS E VENDAS
   const whatsappLink = "https://wa.me/5532984249779?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20o%20livro%20Amor%20Proibido.";
   const catalogoLink = "https://wa.me/c/553284249779";
   const amazonLink = "https://www.amazon.com.br/dp/B0GG59T28S";
-  const hotmartLink = "https://go.hotmart.com/P104964934F";
+  const hotmartPhysicalLink = "https://go.hotmart.com/P104964934F";
+  const hotmartEbookLink = "https://go.hotmart.com/V103903945P";
   const instagramLink = "https://www.instagram.com/ed.ebookcriativo/"; 
   const facebookLink = "https://www.facebook.com/profile.php?id=61586950552494";
   const youtubeLink = "https://www.youtube.com/@e-BookCriativo-EmanoelDomingos";
@@ -150,10 +234,11 @@ const App: React.FC = () => {
       title: texts.BOOK_1_GALLERY_TITLE,
       subtitle: texts.BOOK_1_GALLERY_SUBTITLE,
       cover: images.LIVRO_DESTAQUE,
+      icon: Heart,
       year: texts.BOOK_1_YEAR,
       pages: "320",
       description: texts.BOOK_DESC_1 + " " + texts.BOOK_DESC_2, // Usa os textos da seção principal
-      link: hotmartLink,
+      link: hotmartPhysicalLink,
       isAvailable: true
     },
     {
@@ -161,6 +246,7 @@ const App: React.FC = () => {
       title: texts.BOOK_2_TITLE,
       subtitle: texts.BOOK_2_SUBTITLE,
       cover: images.BOOK_COVER_2, // Usa imagem editável
+      icon: Globe,
       year: texts.BOOK_2_YEAR,
       description: texts.BOOK_2_DESC,
       isAvailable: false
@@ -170,6 +256,7 @@ const App: React.FC = () => {
       title: texts.BOOK_3_TITLE,
       subtitle: texts.BOOK_3_SUBTITLE,
       cover: images.BOOK_COVER_3, // Usa imagem editável
+      icon: Star,
       year: texts.BOOK_3_YEAR,
       description: texts.BOOK_3_DESC,
       isAvailable: false
@@ -206,7 +293,12 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-brand-cream relative overflow-x-hidden selection:bg-brand-red selection:text-white">
-      <Header logoUrl={images.LOGO} />
+      <Header 
+        logoUrl={images.LOGO} 
+        user={user}
+        onLogin={handleLogin}
+        onLogout={handleLogout}
+      />
       
       {/* Hero Section */}
       {/* ATUALIZAÇÃO: Alterado lg:h-screen para lg:min-h-screen para evitar corte de conteúdo em telas baixas */}
@@ -240,7 +332,7 @@ const App: React.FC = () => {
             </p>
             
             <div className="flex flex-wrap gap-4 pt-4">
-              <Button onClick={() => window.open(hotmartLink, '_blank')} className="shadow-lg shadow-brand-red/20">
+              <Button onClick={() => window.open(hotmartPhysicalLink, '_blank')} className="shadow-lg shadow-brand-red/20">
                 Adquirir Livro
               </Button>
               <Button variant="secondary" className="border-white/20 hover:bg-white/10" onClick={() => document.getElementById('obras')?.scrollIntoView({ behavior: 'smooth' })}>
@@ -321,7 +413,7 @@ const App: React.FC = () => {
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4 pt-6">
-                 <div className="border-2 border-brand-red bg-white p-6 rounded-sm relative hover:shadow-2xl hover:shadow-brand-red/10 transition-all duration-300 cursor-pointer group" onClick={() => window.open(hotmartLink, '_blank')}>
+                 <div className="border-2 border-brand-red bg-white p-6 rounded-sm relative hover:shadow-2xl hover:shadow-brand-red/10 transition-all duration-300 cursor-pointer group" onClick={() => window.open(hotmartPhysicalLink, '_blank')}>
                     <div className="absolute -top-3 right-4 bg-brand-dark text-white text-[10px] font-bold px-3 py-1 uppercase tracking-widest shadow-md">Disponível na Hotmart</div>
                     <Book className="w-8 h-8 text-brand-dark mb-3 group-hover:text-brand-red transition-colors" />
                     <h4 className="font-display font-bold text-xl text-brand-dark">Livro Físico</h4>
@@ -332,11 +424,11 @@ const App: React.FC = () => {
                     </div>
                  </div>
 
-                 <div className="border border-gray-200 bg-brand-gray p-6 rounded-sm relative hover:border-brand-gold hover:bg-white transition-all duration-300 cursor-pointer group" onClick={() => window.open(amazonLink, '_blank')}>
-                    <div className="absolute top-0 right-0 bg-brand-gold text-brand-dark text-[10px] font-bold px-2 py-1 uppercase">Plataforma Amazon</div>
+                 <div className="border border-gray-200 bg-brand-gray p-6 rounded-sm relative hover:border-brand-gold hover:bg-white transition-all duration-300 cursor-pointer group" onClick={() => window.open(hotmartEbookLink, '_blank')}>
+                    <div className="absolute top-0 right-0 bg-brand-gold text-brand-dark text-[10px] font-bold px-2 py-1 uppercase">Plataforma Hotmart</div>
                     <Globe className="w-8 h-8 text-brand-gold mb-3" />
                     <h4 className="font-display font-bold text-xl text-brand-dark">E-book</h4>
-                    <p className="text-gray-500 text-xs mt-1 uppercase tracking-wide">Versão Digital / Kindle</p>
+                    <p className="text-gray-500 text-xs mt-1 uppercase tracking-wide">Versão Digital / Hotmart</p>
                     <div className="mt-4 flex items-end gap-2">
                        <span className="text-3xl font-bold text-brand-dark">R$ {texts.PRICE_EBOOK}</span>
                     </div>
@@ -419,41 +511,61 @@ const App: React.FC = () => {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {LIVROS.map((livro) => (
-              <div 
-                key={livro.id}
-                onClick={() => setSelectedBook(livro)}
-                className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 cursor-pointer group flex flex-col h-full border border-gray-100"
-              >
-                <div className="relative overflow-hidden aspect-[3/4] bg-gray-200">
-                   <img 
-                      src={livro.cover} 
-                      alt={livro.title} 
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-                      referrerPolicy="no-referrer"
-                   />
-                   <div className="absolute inset-0 bg-brand-dark/0 group-hover:bg-brand-dark/40 transition-colors duration-300 flex items-center justify-center">
+            {LIVROS.map((livro) => {
+              const BookIcon = livro.icon;
+              return (
+                <div 
+                  key={livro.id}
+                  onClick={() => setSelectedBook(livro)}
+                  className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 cursor-pointer group flex flex-col h-full border border-gray-100"
+                >
+                  <div className="relative overflow-hidden aspect-[3/4] bg-brand-gray flex items-center justify-center p-8">
+                    <div className="relative w-full h-full bg-white shadow-xl rounded-sm flex flex-col items-center justify-center text-center p-6 transition-transform duration-500 group-hover:scale-105 overflow-hidden">
+                      {BookIcon ? (
+                        <div className="space-y-4">
+                          <div className="w-16 h-16 bg-brand-red/10 rounded-full flex items-center justify-center mx-auto group-hover:bg-brand-red/20 transition-colors">
+                            <BookIcon className="w-8 h-8 text-brand-red" />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="font-display text-brand-dark text-sm leading-tight uppercase tracking-tighter">{livro.title}</p>
+                            <div className="h-0.5 w-6 bg-brand-gold mx-auto"></div>
+                          </div>
+                        </div>
+                      ) : (
+                        <img 
+                          src={livro.cover} 
+                          alt={livro.title} 
+                          className="w-full h-full object-cover" 
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
+                      {/* Efeito de brilho na "capa" */}
+                      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/10 pointer-events-none"></div>
+                    </div>
+
+                    <div className="absolute inset-0 bg-brand-dark/0 group-hover:bg-brand-dark/40 transition-colors duration-300 flex items-center justify-center">
                       <div className="opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 bg-white text-brand-dark px-6 py-2 rounded-full font-bold text-sm uppercase tracking-wider flex items-center gap-2">
                         <Plus className="w-4 h-4 text-brand-red" /> Ver Detalhes
                       </div>
-                   </div>
-                   {!livro.isAvailable && (
+                    </div>
+                    {!livro.isAvailable && (
                       <div className="absolute top-4 right-4 bg-brand-dark text-white text-xs font-bold px-3 py-1 rounded uppercase tracking-widest">
                         Em Breve
                       </div>
-                   )}
+                    )}
+                  </div>
+                  
+                  <div className="p-6 flex flex-col flex-grow">
+                     <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs text-brand-gold font-bold uppercase tracking-widest">{livro.year}</span>
+                        {livro.isAvailable && <span className="text-xs text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded">Disponível</span>}
+                     </div>
+                     <h3 className="text-xl font-display text-brand-dark mb-1 group-hover:text-brand-red transition-colors">{livro.title}</h3>
+                     <p className="text-sm text-gray-500 font-serif italic mb-4">{livro.subtitle}</p>
+                  </div>
                 </div>
-                
-                <div className="p-6 flex flex-col flex-grow">
-                   <div className="flex justify-between items-center mb-2">
-                      <span className="text-xs text-brand-gold font-bold uppercase tracking-widest">{livro.year}</span>
-                      {livro.isAvailable && <span className="text-xs text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded">Disponível</span>}
-                   </div>
-                   <h3 className="text-xl font-display text-brand-dark mb-1 group-hover:text-brand-red transition-colors">{livro.title}</h3>
-                   <p className="text-sm text-gray-500 font-serif italic mb-4">{livro.subtitle}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -463,7 +575,13 @@ const App: React.FC = () => {
       {/* ================================================================================== */}
       <section id="blog" className="py-24 bg-white relative">
          <div className="container mx-auto px-6">
-            <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
+            <motion.div 
+               initial={{ opacity: 0, y: 20 }}
+               whileInView={{ opacity: 1, y: 0 }}
+               viewport={{ once: true }}
+               transition={{ duration: 0.6 }}
+               className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6"
+            >
                <div className="max-w-xl">
                   <div className="flex items-center gap-2 mb-2">
                      <span className="h-px w-8 bg-brand-gold"></span>
@@ -475,11 +593,19 @@ const App: React.FC = () => {
                <Button variant="outline" onClick={() => window.open(catalogoLink, '_blank')} className="hidden md:flex">
                   Ver Todos os Artigos
                </Button>
-            </div>
+            </motion.div>
 
             <div className="grid md:grid-cols-3 gap-8">
-               {POSTS.map((post) => (
-                  <article key={post.id} className="group cursor-pointer flex flex-col h-full" onClick={() => window.open(post.link, '_blank')}>
+               {POSTS.map((post, index) => (
+                  <motion.article 
+                     key={post.id} 
+                     initial={{ opacity: 0, y: 30 }}
+                     whileInView={{ opacity: 1, y: 0 }}
+                     viewport={{ once: true }}
+                     transition={{ duration: 0.5, delay: index * 0.1 }}
+                     className="group cursor-pointer flex flex-col h-full" 
+                     onClick={() => window.open(post.link, '_blank')}
+                  >
                      <div className="relative overflow-hidden rounded-lg mb-6 aspect-video">
                         <img 
                            src={post.image} 
@@ -500,7 +626,7 @@ const App: React.FC = () => {
                      <div className="flex items-center text-brand-gold font-bold text-xs uppercase tracking-widest group-hover:gap-2 transition-all mt-auto">
                         Ler Ensaio <ArrowRight className="w-4 h-4 ml-1" />
                      </div>
-                  </article>
+                  </motion.article>
                ))}
             </div>
             
@@ -515,19 +641,32 @@ const App: React.FC = () => {
       {/* Testimonials */}
       <section id="legado" className="py-24 bg-brand-cream relative border-t border-white">
         <div className="container mx-auto px-6">
-           <div className="text-center mb-16">
+           <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="text-center mb-16"
+           >
              <Star className="w-8 h-8 text-brand-red mx-auto mb-4 animate-spin-slow" />
              <h2 className="text-3xl font-display text-brand-dark font-bold">{texts.TESTIMONIALS_TITLE}</h2>
              <p className="text-gray-500 mt-2">{texts.TESTIMONIALS_SUBTITLE}</p>
-           </div>
+           </motion.div>
            
            <div className="grid md:grid-cols-3 gap-8">
              {[
-               { text: "Uma história que me fez chorar e sorrir. Me vi na força de Katharinne. É impossível parar de ler.", author: "Ana P., Leitora" },
-               { text: "A abordagem sobre a fé fora da religiosidade me libertou. Uma obra teológica e humana necessária.", author: "Carlos M., Teólogo" },
-               { text: "Simplesmente devorei o livro. A ambientação em Rodanthe é mágica e os personagens são vivos.", author: "Juliana S., Estudante" }
+               { text: "Uma história que me fez chorar e sorrir. Me vi na força de Katharinne. É impossível parar de ler.", author: "Júlia Dias, Leitora" },
+               { text: "A abordagem sobre a fé fora da religiosidade me libertou. Uma obra teológica e humana necessária.", author: "Caroline Nascimento, Teóloga" },
+               { text: "Simplesmente devorei o livro. A ambientação em Rodanthe é mágica e os personagens são vivos.", author: "Renata Dias, Estudante" }
              ].map((depoimento, idx) => (
-               <div key={idx} className="bg-white p-10 rounded-sm relative hover:translate-y-[-5px] transition-transform duration-300 border-b-4 border-brand-gold shadow-sm hover:shadow-xl flex flex-col h-full">
+               <motion.div 
+                 key={idx} 
+                 initial={{ opacity: 0, y: 30 }}
+                 whileInView={{ opacity: 1, y: 0 }}
+                 viewport={{ once: true }}
+                 transition={{ duration: 0.5, delay: idx * 0.1 }}
+                 className="bg-white p-10 rounded-sm relative hover:translate-y-[-5px] transition-transform duration-300 border-b-4 border-brand-gold shadow-sm hover:shadow-xl flex flex-col h-full"
+               >
                  <Quote className="absolute top-6 left-6 text-brand-gold/20 w-12 h-12 transform -scale-x-100" />
                  <p className="text-gray-700 italic mb-8 font-serif relative z-10 leading-relaxed text-lg flex-grow">"{depoimento.text}"</p>
                  <div className="flex items-center gap-4 mt-auto pt-6 border-t border-brand-dark/5">
@@ -539,7 +678,7 @@ const App: React.FC = () => {
                        <p className="text-xs text-brand-red font-bold">{depoimento.author.split(',')[1]}</p>
                     </div>
                  </div>
-               </div>
+               </motion.div>
              ))}
            </div>
         </div>
@@ -627,11 +766,34 @@ const App: React.FC = () => {
         </div>
       </footer>
 
+      {/* Botão de Login/Logout no Rodapé para facilitar o acesso */}
+      <div className="fixed bottom-6 right-24 z-50">
+        {user ? (
+          <button 
+            onClick={handleLogout}
+            className="bg-white/90 backdrop-blur-sm text-brand-dark px-4 py-2 rounded-full shadow-lg border border-brand-red/20 flex items-center gap-2 hover:bg-brand-red hover:text-white transition-all group"
+            title="Sair do Modo Admin"
+          >
+            <LogOut className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+            <span className="text-[10px] font-bold uppercase tracking-wider hidden md:inline">Sair</span>
+          </button>
+        ) : (
+          <button 
+            onClick={handleLogin}
+            className="bg-brand-dark/80 backdrop-blur-sm text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 hover:bg-brand-red transition-all group border border-white/10"
+            title="Acesso Restrito"
+          >
+            <LogIn className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <span className="text-[10px] font-bold uppercase tracking-wider hidden md:inline">Admin</span>
+          </button>
+        )}
+      </div>
+
       <WhatsAppButton />
       <BookDetailsModal isOpen={!!selectedBook} onClose={() => setSelectedBook(null)} book={selectedBook} />
       
-      {/* PAINEL DE EDIÇÃO (ADMIN) - Só aparece se ?modo=admin estiver na URL */}
-      {showAdmin && (
+      {/* PAINEL DE EDIÇÃO (ADMIN) - Só aparece se o usuário estiver logado e for o dono */}
+      {user && (user.email === 'emanoel.domingos0909@gmail.com') && (
         <AdminSettings 
           currentImages={images} 
           onUpdate={handleUpdateImages} 
@@ -639,9 +801,20 @@ const App: React.FC = () => {
           currentTexts={texts}
           onUpdateTexts={handleUpdateTexts}
           onResetTexts={handleResetTexts}
+          user={user}
         />
       )}
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <ErrorBoundary>
+      <FirebaseProvider>
+        <AppContent />
+      </FirebaseProvider>
+    </ErrorBoundary>
   );
 };
 

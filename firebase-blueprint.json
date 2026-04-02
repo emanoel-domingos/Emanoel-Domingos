@@ -1,0 +1,64 @@
+{
+  "entities": {
+    "SiteConfig": {
+      "title": "Site Configuration",
+      "description": "Global settings for the site including images and texts",
+      "type": "object",
+      "properties": {
+        "images": {
+          "type": "object",
+          "description": "Image URLs for the site"
+        },
+        "texts": {
+          "type": "object",
+          "description": "Text content for the site"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["images", "texts"]
+    },
+    "Contact": {
+      "title": "Contact Form Submission",
+      "description": "Data from the contact form",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "message", "createdAt"]
+    },
+    "LaunchNotification": {
+      "title": "Launch Notification Request",
+      "description": "User email request for book launch notification",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "bookId": { "type": "number" },
+        "bookTitle": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "bookId", "bookTitle", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/config/site": {
+      "schema": "SiteConfig",
+      "description": "Singleton configuration document"
+    },
+    "/contacts/{contactId}": {
+      "schema": "Contact",
+      "description": "Collection of contact form submissions"
+    },
+    "/launch_notifications/{notificationId}": {
+      "schema": "LaunchNotification",
+      "description": "Collection of user emails for book launch notifications"
+    }
+  }
+}
